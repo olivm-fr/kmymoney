@@ -94,6 +94,11 @@
             <string comment="@item the columns will display yearly data">Yearly</string>
            </property>
           </item>
+          <item>
+           <property name="text">
+            <string comment="@item the columns will display all data">Globally</string>
+           </property>
+          </item>
          </widget>
         </item>
        </layout>

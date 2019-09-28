@@ -323,8 +323,8 @@ void KReportConfigurationFilterDlg::slotSearch()
     d->m_currentState.setYLabelsPrecision(d->m_tabRange->ui->m_yLabelsPrecision->value());
     d->m_currentState.setDataFilter((eMyMoney::Report::DataLock)d->m_tabRange->ui->m_dataLock->currentIndex());
 
-    eMyMoney::Report::ColumnType ct[6] = { eMyMoney::Report::ColumnType::Days, eMyMoney::Report::ColumnType::Weeks, eMyMoney::Report::ColumnType::Months, eMyMoney::Report::ColumnType::BiMonths, eMyMoney::Report::ColumnType::Quarters, eMyMoney::Report::ColumnType::Years };
-    bool dy[6] = { true, true, false, false, false, false };
+    eMyMoney::Report::ColumnType ct[7] = { eMyMoney::Report::ColumnType::Days, eMyMoney::Report::ColumnType::Weeks, eMyMoney::Report::ColumnType::Months, eMyMoney::Report::ColumnType::BiMonths, eMyMoney::Report::ColumnType::Quarters, eMyMoney::Report::ColumnType::Years, eMyMoney::Report::ColumnType::Global };
+    bool dy[7] = { true, true, false, false, false, false, false };
     d->m_currentState.setColumnType(ct[d->m_tabRange->ui->m_comboColumns->currentIndex()]);
 
     //TODO (Ace) This should be implicit in the call above.  MMReport needs fixin'
@@ -606,6 +606,9 @@ void KReportConfigurationFilterDlg::slotReset()
           break;
         case eMyMoney::Report::ColumnType::Years:
           combo->setCurrentItem(i18nc("@item the columns will display yearly data", "Yearly"), false);
+          break;
+        case eMyMoney::Report::ColumnType::Global:
+          combo->setCurrentItem(i18nc("@item the columns will display all data", "Globally"), false);
           break;
         default:
           break;

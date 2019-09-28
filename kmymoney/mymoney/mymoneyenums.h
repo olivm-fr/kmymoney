@@ -86,7 +86,7 @@ namespace eMyMoney {
     enum class RowType { NoRows = 0, AssetLiability, ExpenseIncome, Category, TopCategory, Account, Tag, Payee, Month, Week, TopAccount, AccountByTopAccount, EquityType, AccountType, Institution, Budget, BudgetActual, Schedule, AccountInfo, AccountLoanInfo, AccountReconcile, CashFlow, Invalid };
     inline uint qHash(const RowType key, uint seed) { return ::qHash(static_cast<uint>(key), seed); }
 
-    enum class ColumnType { NoColumns = 0, Days = 1, Months = 1, BiMonths = 2, Quarters = 3, Weeks = 7, Years = 12, Invalid };
+    enum class ColumnType { NoColumns = 0, Days = 1, Months = 1, BiMonths = 2, Quarters = 3, Weeks = 7, Years = 12, Global = 1200, Invalid };
     inline uint qHash(const ColumnType key, uint seed) { return ::qHash(static_cast<uint>(key), seed); }
 
     enum class ReportType { NoReport = 0, PivotTable, QueryTable, InfoTable, Invalid };
