@@ -151,7 +151,7 @@ bool Weboob::updateAccount(const MyMoneyAccount& kacc, bool moreAccounts)
 
   d->progress = std::make_unique<QProgressDialog>(nullptr);
   d->progress->setWindowTitle(i18n("Connecting to bank..."));
-  d->progress->setLabelText(i18n("Retrieving transactions..."));
+  d->progress->setLabelText(QString().sprintf("%s since %s", qPrintable(i18n("Retrieving transactions...")), qPrintable(kacc.value("lastImportedTransactionDate"))/*, qPrintable(kacc.value("lastStatementBalance"))*/));
   d->progress->setModal(true);
   d->progress->setCancelButton(nullptr);
   d->progress->setMinimum(0);
@@ -200,6 +200,8 @@ void Weboob::gotAccount()
   }
 #endif
 
+  QDate lastUpdate = QDate::fromString(kacc.value("lastImportedTransactionDate"), Qt::ISODate);
+
   for (QListIterator<WeboobInterface::Transaction> it(acc.transactions); it.hasNext();) {
     WeboobInterface::Transaction tr = it.next();
     MyMoneyStatement::Transaction kt;
@@ -210,7 +212,10 @@ void Weboob::gotAccount()
     kt.m_strMemo = tr.raw;
     kt.m_strPayee = tr.label;
 
-    ks.m_listTransactions += kt;
+    if (lastUpdate.isValid() && lastUpdate > kt.m_datePosted)
+        qInfo() << "Skipping transaction " << kt.m_strMemo << " dated " << kt.m_datePosted.toString();
+    else
+        ks.m_listTransactions += kt;
   }
 
   statementInterface()->import(ks);
