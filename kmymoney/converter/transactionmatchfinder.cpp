@@ -50,7 +50,7 @@ TransactionMatchFinder::MatchResult TransactionMatchFinder::findMatch(const MyMo
   QString payeeName = MyMoneyFile::instance()->payee(m_importedSplit.payeeId()).name();
   QString amount = m_importedSplit.shares().formatMoney("", 2);
   QString account = MyMoneyFile::instance()->account(m_importedSplit.accountId()).name();
-  qDebug() << "Looking for a match with transaction: " << date << "," << payeeName << "," << amount
+  qWarning() << "Looking for a match with transaction: " << date << "," << payeeName << "," << amount
   << "(referenced account: " << account << ")";
 
   createListOfMatchCandidates();
@@ -92,6 +92,7 @@ bool TransactionMatchFinder::splitsAreDuplicates(const MyMoneySplit& split1, con
 
 bool TransactionMatchFinder::splitsMatch(const MyMoneySplit& importedSplit, const MyMoneySplit& existingSplit, int amountVariation) const
 {
+  qWarning() << "Testing splits";
   return (splitsAccountsMatch(importedSplit, existingSplit) &&
           splitsBankIdsMatch(importedSplit, existingSplit) &&
           splitsAmountsMatch(importedSplit, existingSplit, amountVariation) &&
@@ -144,8 +145,10 @@ bool TransactionMatchFinder::splitsPayeesOrNotesMatchOrEmpty(const MyMoneySplit&
 
 void TransactionMatchFinder::findMatchingSplit(const MyMoneyTransaction& transaction, int amountVariation)
 {
+  qWarning() << "findMatchingSplit for candidate " + transaction.memo() + " # " + MyMoneyFile::instance()->payee(transaction.firstSplit().payeeId()).name();
   foreach (const MyMoneySplit & split, transaction.splits()) {
     if (splitsAreDuplicates(m_importedSplit, split, amountVariation)) {
+      qWarning() << "dupps !";
       matchedTransaction.reset(new MyMoneyTransaction(transaction));
       matchedSplit.reset(new MyMoneySplit(split));
       matchResult = MatchDuplicate;
@@ -153,6 +156,7 @@ void TransactionMatchFinder::findMatchingSplit(const MyMoneyTransaction& transac
     }
 
     if (splitsMatch(m_importedSplit, split, amountVariation)) {
+      qWarning() << "splits match";
       matchedTransaction.reset(new MyMoneyTransaction(transaction));
       matchedSplit.reset(new MyMoneySplit(split));
 

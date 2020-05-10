@@ -36,7 +36,7 @@ void ExistingTransactionMatchFinder::createListOfMatchCandidates()
   filter.setAmountFilter(m_importedSplit.shares(), m_importedSplit.shares());
 
   MyMoneyFile::instance()->transactionList(listOfMatchCandidates, filter);
-  qDebug() << "Considering" << listOfMatchCandidates.size() << "existing transaction(s) for matching";
+  qWarning() << "Considering" << listOfMatchCandidates.size() << "existing transaction(s) for matching (account+~date+amount)";
 }
 
 void ExistingTransactionMatchFinder::findMatchInMatchCandidatesList()
