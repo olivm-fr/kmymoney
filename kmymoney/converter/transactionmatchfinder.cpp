@@ -87,7 +87,7 @@ MyMoneySchedule TransactionMatchFinder::getMatchedSchedule() const
 
 bool TransactionMatchFinder::splitsAreDuplicates(const MyMoneySplit& split1, const MyMoneySplit& split2, int amountVariation) const
 {
-  return (splitsAmountsMatch(split1, split2, amountVariation) && splitsBankIdsDuplicated(split1, split2));
+  return (splitsAmountsMatch(split1, split2, amountVariation) && splitsBankIdsDuplicated(split1, split2) && splitsPayeesMatchOrEmpty(split1, split2));
 }
 
 bool TransactionMatchFinder::splitsMatch(const MyMoneySplit& importedSplit, const MyMoneySplit& existingSplit, int amountVariation) const
@@ -95,7 +95,7 @@ bool TransactionMatchFinder::splitsMatch(const MyMoneySplit& importedSplit, cons
   return (splitsAccountsMatch(importedSplit, existingSplit) &&
           splitsBankIdsMatch(importedSplit, existingSplit) &&
           splitsAmountsMatch(importedSplit, existingSplit, amountVariation) &&
-          splitsPayeesMatchOrEmpty(importedSplit, existingSplit) &&
+          splitsPayeesOrNotesMatchOrEmpty(importedSplit, existingSplit) &&
           !existingSplit.isMatched());
 }
 
@@ -131,6 +131,15 @@ bool TransactionMatchFinder::splitsPayeesMatchOrEmpty(const MyMoneySplit& split1
   bool payeesMatch = (split1.payeeId() == split2.payeeId());
   bool atLeastOnePayeeIsNotSet = (split1.payeeId().isEmpty() || split2.payeeId().isEmpty());
   return payeesMatch || atLeastOnePayeeIsNotSet;
+}
+
+bool TransactionMatchFinder::splitsPayeesOrNotesMatchOrEmpty(const MyMoneySplit& importedSplit, const MyMoneySplit& existingSplit) const
+{
+  if (splitsPayeesMatchOrEmpty(importedSplit, existingSplit))
+    return true;
+  if (!importedSplit.memo().isEmpty())
+    return existingSplit.memo().startsWith(importedSplit.memo());
+  return false;
 }
 
 void TransactionMatchFinder::findMatchingSplit(const MyMoneyTransaction& transaction, int amountVariation)

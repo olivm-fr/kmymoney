@@ -212,7 +212,7 @@ void Weboob::gotAccount()
     kt.m_strMemo = tr.raw;
     kt.m_strPayee = tr.label;
 
-    if (lastUpdate.isValid() && lastUpdate > kt.m_datePosted)
+    if (lastUpdate.isValid() && lastUpdate.addMonths(-1) > kt.m_datePosted) // leave a 1-month tolerance
         qInfo() << "Skipping transaction " << kt.m_strMemo << " dated " << kt.m_datePosted.toString();
     else
         ks.m_listTransactions += kt;
