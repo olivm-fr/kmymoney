@@ -387,6 +387,13 @@
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QCheckBox" name="m_andTagsButton">
+           <property name="text">
+            <string>Select transactions with all selected tags</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>

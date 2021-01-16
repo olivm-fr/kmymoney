@@ -205,6 +205,11 @@ public:
     }
   }
 
+  void setTagAndFlag()
+  {
+    m_filter.setTagAndFlag();
+  }
+
   void selectAllItems(QTreeWidget* view, const bool state)
   {
     QTreeWidgetItem* it_v;
@@ -329,10 +334,12 @@ public:
 
     ui->m_tagsView->sortItems(0, Qt::AscendingOrder);
     ui->m_emptyTagsButton->setCheckState(Qt::Unchecked);
+    ui->m_andTagsButton->setCheckState(Qt::Unchecked);
 
     q->connect(ui->m_allTagsButton,   &QAbstractButton::clicked, q, &KTransactionFilter::slotSelectAllTags);
     q->connect(ui->m_clearTagsButton, &QAbstractButton::clicked, q, &KTransactionFilter::slotDeselectAllTags);
     q->connect(ui->m_emptyTagsButton, &QCheckBox::stateChanged,  q, &KTransactionFilter::slotUpdateSelections);
+    q->connect(ui->m_andTagsButton,   &QCheckBox::stateChanged,  q, &KTransactionFilter::slotUpdateSelections);
     q->connect(ui->m_tagsView,        &QTreeWidget::itemChanged, q, &KTransactionFilter::slotUpdateSelections);
   }
 

@@ -89,7 +89,7 @@ namespace Attribute {
     Pattern, CaseSensitive, RegEx, InvertText, State,
     From, To,
     NegExpenses,
-    Validity, ChartPalette,
+    Validity, ChartPalette, TagAndFlag,
     // insert new entries above this line
     LastAttribute
   };
@@ -205,7 +205,8 @@ namespace MyMoneyXmlContentHandler2 {
       {Attribute::Report::From,                   QStringLiteral("from")},
       {Attribute::Report::To,                     QStringLiteral("to")},
       {Attribute::Report::Validity,               QStringLiteral("validity")},
-      {Attribute::Report::NegExpenses,            QStringLiteral("negexpenses")}
+      {Attribute::Report::NegExpenses,            QStringLiteral("negexpenses")},
+      {Attribute::Report::TagAndFlag,             QStringLiteral("tagAndFlag")}
     };
     return attributeNames.value(attributeID);
   }
@@ -886,6 +887,8 @@ namespace MyMoneyXmlContentHandler2 {
           report.addPayee(c.attribute(attributeName(Attribute::Report::ID)));
         if (elementName(Element::Report::Tag) == c.tagName())
           report.addTag(c.attribute(attributeName(Attribute::Report::ID)));
+        if (node.attribute(attributeName(Attribute::Report::TagAndFlag), "false") == "true")
+          report.setTagAndFlag();
         if (elementName(Element::Report::Category) == c.tagName() && c.hasAttribute(attributeName(Attribute::Report::ID)))
           report.addCategory(c.attribute(attributeName(Attribute::Report::ID)));
         if (elementName(Element::Report::Account) == c.tagName() && c.hasAttribute(attributeName(Attribute::Report::ID)))
@@ -1001,6 +1004,7 @@ namespace MyMoneyXmlContentHandler2 {
         el.setAttribute(attributeName(Attribute::Report::ShowColumnTotals), report.isShowingColumnTotals());
         el.setAttribute(attributeName(Attribute::Report::Detail), reportNames(report.detailLevel()));
         el.setAttribute(attributeName(Attribute::Report::IncludesTransfers), report.isIncludingTransfers());
+        el.setAttribute(attributeName(Attribute::Report::TagAndFlag), report.getTagAndFlag() ? "true" : "false");
 
         // write performance tab
         if (report.queryColumns() & eMyMoney::Report::QueryColumn::Performance || report.queryColumns() & eMyMoney::Report::QueryColumn::CapitalGain)

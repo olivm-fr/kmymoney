@@ -222,6 +222,19 @@ void MyMoneyTransactionFilter::addTag(const QString& id)
     d->m_tags.insert(id, QString());
 }
 
+void MyMoneyTransactionFilter::setTagAndFlag()
+{
+  Q_D(MyMoneyTransactionFilter);
+  d->m_filterSet.setFlag(tagAndFilterActive);
+}
+
+bool MyMoneyTransactionFilter::getTagAndFlag() const
+{
+  const Q_D(MyMoneyTransactionFilter);
+  return d->m_filterSet.testFlag(tagAndFilterActive);
+}
+
+
 void MyMoneyTransactionFilter::addType(const int type)
 {
   Q_D(MyMoneyTransactionFilter);
@@ -443,11 +456,25 @@ QVector<MyMoneySplit> MyMoneyTransactionFilter::matchingSplits(const MyMoneyTran
               if (tags.isEmpty()) {
                 continue;
               } else {
-                auto found = false;
-                for (const auto& tag : tags) {
-                  if (d->m_tags.contains(tag)) {
-                    found = true;
-                    break;
+                bool found;
+                if (filter.testFlag(tagAndFilterActive)) {
+                  found = true;
+                  QHashIterator<QString, QString> it_tag(d->m_tags);
+                  while (it_tag.hasNext()) {
+                    it_tag.next();
+                    if (!tags.contains(it_tag.key())) {
+                      found = false;
+                      break;
+                    }
+                  }
+                } else {
+                  found = false;
+                  for (const auto& tag : tags) {
+                    if (d->m_tags.contains(tag)) {
+                      //qInfo().nospace() << tag << "found";
+                      found = true;
+                      break;
+                    }
                   }
                 }
 

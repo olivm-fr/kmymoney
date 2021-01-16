@@ -72,7 +72,8 @@ public:
     amountFilterActive   = 0x0080,
     typeFilterActive     = 0x0100,
     stateFilterActive    = 0x0200,
-    validityFilterActive = 0x0400
+    validityFilterActive = 0x0400,
+    tagAndFilterActive   = 0x0800
   };
   Q_DECLARE_FLAGS(FilterSet, FilterFlags)
 
@@ -205,6 +206,19 @@ public:
     * @param id internal id of the tag
     */
   void addTag(const QString& id);
+
+  /**
+    * This method will set the flag forcing an "AND" between tags set as filters
+    */
+  void setTagAndFlag();
+  
+  /**
+    * This method tells if the flag forcing an "AND" between tags is set as filters
+    *
+    * @retval true  all tags must be present in the transaction
+    * @retval false standard behavior, any tag must be present in the transaction
+    */
+  bool getTagAndFlag() const;
 
   /**
     */

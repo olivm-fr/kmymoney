@@ -76,6 +76,7 @@ void KTransactionFilter::slotReset()
   d->selectAllItems(d->ui->m_payeesView, true);
 
   d->ui->m_emptyTagsButton->setChecked(false);
+  d->ui->m_andTagsButton->setChecked(false);
   d->selectAllItems(d->ui->m_tagsView, true);
 
   d->ui->m_typeBox->setCurrentIndex((int)eMyMoney::TransactionFilter::Type::All);
@@ -332,6 +333,10 @@ MyMoneyTransactionFilter KTransactionFilter::setupFilter()
     d->m_filter.addTag(QString());
 
   } else if (!d->allItemsSelected(d->ui->m_tagsView)) {
+    // OMA patch
+    if (d->ui->m_andTagsButton->isChecked())
+      d->setTagAndFlag();
+
     d->scanCheckListItems(d->ui->m_tagsView, KTransactionFilterPrivate::addTagToFilter);
   }
 
@@ -493,6 +498,9 @@ void KTransactionFilter::resetFilter(MyMoneyReport& rep)
     } else {
       d->selectAllItems(d->ui->m_tagsView, false);
       d->selectItems(d->ui->m_tagsView, tags, true);
+    }
+    if (rep.getTagAndFlag()) {
+      d->ui->m_andTagsButton->setChecked(true);
     }
   } else {
     d->selectAllItems(d->ui->m_tagsView, true);
