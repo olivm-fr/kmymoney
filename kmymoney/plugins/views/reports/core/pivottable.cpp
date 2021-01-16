@@ -2206,6 +2206,10 @@ void PivotTable::calculateMovingAverage()
 
             //set the right start date depending on the column type
             switch (m_config.columnType()) {
+              case eMyMoney::Report::ColumnType::Global: {
+                  averageStart = QDate(columnDate(column).year(), 1, 1).addYears(-4);
+                  break;
+                }
               case eMyMoney::Report::ColumnType::Years: {
                   averageStart = QDate(columnDate(column).year(), 1, 1);
                   break;

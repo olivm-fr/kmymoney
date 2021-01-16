@@ -29,11 +29,13 @@ def get_backends():
 
     result = {}
     for instance_name, name, params in sorted(w.backends_config.iter_backends()):
+      try:
         module = w.modules_loader.get_or_load_module(name)
         if not module.has_caps(CapBank):
             continue
-
         result[instance_name] = {'module': name}
+      except Exception as inst:
+        pass #result["error"] = {'module':'on importing "'+instance_name+'"'}
 
     return result
 
