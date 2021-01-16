@@ -630,6 +630,11 @@ void QueryTable::constructTransactionTable()
 
     QMap<QString, MyMoneyMoney> xrMap; // container for conversion rates from given currency to myBeginCurrency
 
+    // OMA patch
+    QList<QString> tagIdList = (*myBegin).tagIdList();
+    tagIdList.sort();
+    // END OMA patch
+
     do {
       MyMoneyMoney xr;
       ReportAccount splitAcc((* it_split).accountId());
@@ -651,7 +656,13 @@ void QueryTable::constructTransactionTable()
       QString institution = splitAcc.institutionId();
       QString payee = (*it_split).payeeId();
 
-      const QList<QString> tagIdList = (*it_split).tagIdList();
+      // OMA patch
+      if (! (*it_split).tagIdList().isEmpty() ) {
+        tagIdList = (*it_split).tagIdList();
+        tagIdList.sort();
+      }
+      //const QList<QString> tagIdList = (*it_split).tagIdList();
+      // END patch
 
       //convert to base currency
       if (m_config.isConvertCurrency()) {
@@ -921,6 +932,19 @@ void QueryTable::constructTransactionTable()
               qA [ctTopCategory] = splitAcc.topParentName();
               qA [ctCategoryType] = MyMoneyAccount::accountTypeToString(splitAcc.accountGroup());
             }
+
+            // OMA patch
+            if (tag_special_case) {
+              tagIdListCache = tagIdList;
+            } else {
+              qA[ctTag] = "";
+              QString delimiter;
+              foreach(const auto tagId, tagIdList) {
+                qA[ctTag] += delimiter + file->tag(tagId).name().simplified();
+                delimiter = QLatin1Char(',');
+              }
+            }
+            // END OMA patch
 
             if (splits.count() > 1) {
               if (use_transfers || (splitAcc.isIncomeExpense() && m_config.includes(splitAcc))) {
