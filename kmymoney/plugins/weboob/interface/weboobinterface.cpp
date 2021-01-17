@@ -20,6 +20,7 @@
 
 #include <QDebug>
 #include <QTemporaryFile>
+#include <memory>
 
 #include "weboobinterface.h"
 
