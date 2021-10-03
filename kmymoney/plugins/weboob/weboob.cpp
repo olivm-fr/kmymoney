@@ -89,14 +89,14 @@ Weboob::Weboob(QObject *parent, const QVariantList &args) :
   setXMLFile(rcFileName);
 #endif
 
-  qDebug("Plugins: weboob loaded");
+  qInfo("Plugins: weboob loaded");
 }
 
 Weboob::~Weboob()
 {
   Q_D(Weboob);
   delete d;
-  qDebug("Plugins: weboob unloaded");
+  qInfo("Plugins: weboob unloaded");
 }
 
 void Weboob::plug()
@@ -164,10 +164,12 @@ bool Weboob::updateAccount(const MyMoneyAccount& kacc, bool moreAccounts)
   QString bname = kacc.onlineBankingSettings().value("wb-backend");
   QString id = kacc.onlineBankingSettings().value("wb-id");
   QString max = kacc.onlineBankingSettings().value("wb-max");
+  
+  qInfo("Connecting to bank %s:%s", qPrintable(bname), qPrintable(id));
 
   d->progress = std::make_unique<QProgressDialog>(nullptr);
   d->progress->setWindowTitle(i18n("Connecting to bank..."));
-  d->progress->setLabelText(QString().sprintf("%s since %s", qPrintable(i18n("Retrieving transactions...")), qPrintable(kacc.value("lastImportedTransactionDate"))/*, qPrintable(kacc.value("lastStatementBalance"))*/));
+  d->progress->setLabelText(QString::asprintf("%s since %s", qPrintable(i18n("Retrieving transactions...")), qPrintable(kacc.value("lastImportedTransactionDate"))/*, qPrintable(kacc.value("lastStatementBalance"))*/));
   d->progress->setModal(true);
   d->progress->setCancelButton(nullptr);
   d->progress->setMinimum(0);
@@ -191,6 +193,8 @@ void Weboob::gotAccount()
   MyMoneyAccount kacc = statementInterface()->account("wb-id", acc.id);
   MyMoneyStatement ks;
 
+  qInfo("%s : got new balance %s and %d transactions", qPrintable(acc.name), qPrintable(acc.balance.toString()), acc.transactions.length());
+  
   ks.m_accountId = kacc.id();
   ks.m_strAccountName = acc.name;
   ks.m_closingBalance = acc.balance;
@@ -221,6 +225,8 @@ void Weboob::gotAccount()
   for (QListIterator<WeboobInterface::Transaction> it(acc.transactions); it.hasNext();) {
     WeboobInterface::Transaction tr = it.next();
     MyMoneyStatement::Transaction kt;
+    
+    qInfo("Handling transaction %s dated %s", qPrintable(tr.raw), qPrintable(tr.rdate.toString()));
 
     kt.m_strBankID = QLatin1String("ID ") + tr.id;
     kt.m_datePosted = tr.rdate;
