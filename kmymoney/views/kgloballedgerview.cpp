@@ -70,6 +70,7 @@
 #include "mymoneyenums.h"
 #include "menuenums.h"
 #include <QtCore/qprocess.h>
+#include <QtCore/qfile.h>
 
 using namespace eMenu;
 
@@ -1873,13 +1874,11 @@ void KGlobalLedgerView::slotMatchTransactions()
 void KGlobalLedgerView::slotInvoiceTransactions()
 {
   Q_D(KGlobalLedgerView);
-  // suppress copy transactions if view not visible
-  // or in edit mode
   if (!isVisible() || d->m_inEditMode)
     return;
 
   const auto file = MyMoneyFile::instance();
-  const auto acc = file->account(d->m_lastSelectedAccountID);
+  const auto acc = d->m_currentAccount;
   const auto currency = file->currency(acc.currencyId());
 
   auto args = QStringList();
@@ -1887,99 +1886,137 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   QString payeeId = NULL;
   MyMoneyMoney totalValue;
   QString totalCompany = NULL;
+  QMap<QString, MyMoneyMoney> splitPayment;
   QMap<QString, MyMoneyMoney> totalPayment;
-  foreach (const auto& st, d->m_selectedTransactions) {
-    const auto& s = st.split();
-    const auto& t = st.transaction();
-    if (s.payeeId().isEmpty()) {
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No payee", t.id()), i18n("Invoice error"));
-      return;
-    }
-    if (payeeId == NULL)
-      payeeId = s.payeeId();
-    else if (payeeId != s.payeeId()) {
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different payees", t.id()), i18n("Invoice error"));
-      return;
-    }
-    
-    totalValue += s.value();
-    
-    QString company = NULL;
-    QString payment = NULL;
-    foreach (const auto& tagId, s.tagIdList()) {
-      const auto name = file->tag(tagId).name();
-      if (name == "auto-entreprise")
-        company = "NATHALIE";
-      else if (name == "L'ESCALE")
-        company = "ESCALE";
-      else if (name == "CB")
-        payment = "Carte Bancaire";
-      else if (name == "Virement")
-        payment = "Virement";
-      else if (name == "Espèce")
-        payment = "Espèces";
-    }
-    if (company == NULL){
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no company detected in tags", t.id()), i18n("Invoice error"));
-      return;
-    }
-    if (totalCompany == NULL)
-      totalCompany = company;
-    else if (totalCompany != company) {
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different companies in tags", t.id()), i18n("Invoice error"));
-      return;
-    }
-    
-    if (payment == NULL){
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no payment detected in tags", t.id()), i18n("Invoice error"));
-      return;
-    }
-    totalPayment[payment] += s.value();
-  }
-  
-  args << "--output=/tmp/facture" << "--numero=NUMFACTURE";
-  foreach (const auto& pay, totalPayment.keys())
-    args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
-  args << "--entreprise=" + totalCompany;
-  args << "--montant=" + totalValue.formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
-  const auto p = file->payee(payeeId);
-  const auto addr = p.address().split('\n', Qt::SkipEmptyParts);
-  auto name = p.name();
-  auto addr1 = QString("");
-  auto addr2 = QString("");
-  if (addr.length() > 0)
-    name = addr[0];
-  if (addr.length() > 1)
-    addr1 = addr[1];
-  if (addr.length() > 2)
-    addr2 = addr[2];
-  args << "--client=" + name << "--adresse1=" + addr1 << "--adresse2=" + addr2 << "--cpville=" + p.postcode() + " " + p.city() << "--pays=" + p.state();
-  args << "--date=" + QDate::currentDate().toString(Qt::DefaultLocaleShortDate);
-
-      
-  foreach (const auto& st, d->m_selectedTransactions) {
-    const auto& t = st.transaction();
-    try {
+  try {
+    foreach (const auto& st, d->m_selectedTransactions) {
       const auto& s = st.split();
-      QString txt = "Session de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
-      txt += ";"; // no second label
-      const auto amount = s.value().formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
-      txt += ";" + amount; // unit price
-      txt += ";1"; // number of units
-      txt += ";0%"; // taxes
-      txt += ";" + amount; // total price
-
-      args << "--ligne=" + txt;
-      qDebug() << "Calling java with args" << args.join("\n");
-      QProcess::startDetached( "java", args);
-      const auto ok = KMessageBox::warningContinueCancel(this, i18n("Is this document OK to send ?"), i18n("Invoice result"));
-      if (ok != KMessageBox::Continue)
+      const auto& t = st.transaction();
+      if (s.payeeId().isEmpty()) {
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No payee", t.id()), i18n("Invoice error"));
         return;
+      }
+      if (payeeId == NULL)
+        payeeId = s.payeeId();
+      else if (payeeId != s.payeeId()) {
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different payees", t.id()), i18n("Invoice error"));
+        return;
+      }
       
-    } catch (MyMoneyException &e) {
-      qDebug() << "Cannot generate invoice for " << t.id();
-      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : %2", t.id(), e.what()), i18n("Invoice error"));
+      auto amount = s.value();
+      
+      QString company = NULL;
+      QString payment = NULL;
+      foreach (const auto& tagId, s.tagIdList()) {
+        const auto name = file->tag(tagId).name();
+        if (name == "auto-entreprise")
+          company = "NATHALIE";
+        else if (name == "L'ESCALE")
+          company = "ESCALE";
+        else if (name == "CB")
+          payment = "Carte Bancaire";
+        else if (name == "Virement")
+          payment = "Virement";
+        else if (name == "Espèce")
+          payment = "Espèces";
+      }
+      if (company == NULL){
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no company detected in tags", t.id()), i18n("Invoice error"));
+        return;
+      }
+      if (totalCompany == NULL)
+        totalCompany = company;
+      else if (totalCompany != company) {
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different companies in tags", t.id()), i18n("Invoice error"));
+        return;
+      }
+      
+      if (payment == NULL){
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no payment detected in tags", t.id()), i18n("Invoice error"));
+        return;
+      }
+      if (payment == "Virement" && amount.isZero()) {
+        const QStringList notes = file->payee(payeeId).notes().split('\n', Qt::SkipEmptyParts);
+        const auto tarif = notes.filter(QLatin1String("tarif="));
+        if (tarif.length() > 0)
+          amount = MyMoneyMoney(tarif[0].split('=')[1]);
+      }
+      totalPayment[payment] += amount;
+      splitPayment[s.id()] = amount;
+      totalValue += amount;
     }
+    
+    const auto filepath = QString("/tmp/facture");
+    const auto desc = acc.description().split('\n', Qt::SkipEmptyParts);
+    QString invoice = "FACTURE-XXX";
+    const auto prefix = desc.filter("facture-" + totalCompany + "-prefix=");
+    if (prefix.length() > 0)
+      invoice = prefix[0].split('=')[1];
+    invoice.replace(QString("%YEAR%"), QString::number(QDate::currentDate().year()));
+    invoice.replace(QString("%MONTH%"), QString::number(QDate::currentDate().month()).rightJustified(2, '0'));
+    const auto increment = desc.filter("facture-" + totalCompany + "-nextincrement=");
+    if (increment.length() > 0)
+      invoice += increment[0].split('=')[1].rightJustified(4, '0');    
+    
+    args << "--output=" + filepath << "--numero="+invoice;
+    foreach (const auto& pay, totalPayment.keys())
+      args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+    args << "--entreprise=" + totalCompany;
+    args << "--montant=" + totalValue.formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+    const auto p = file->payee(payeeId);
+    const auto addr = p.address().split('\n', Qt::SkipEmptyParts);
+    auto name = p.name();
+    auto addr1 = QString("");
+    auto addr2 = QString("");
+    if (addr.length() > 0)
+      name = addr[0];
+    if (addr.length() > 1)
+      addr1 = addr[1];
+    if (addr.length() > 2)
+      addr2 = addr[2];
+    args << "--client=" + name << "--adresse1=" + addr1 << "--adresse2=" + addr2 << "--cpville=" + p.postcode() + " " + p.city() << "--pays=" + p.state();
+    args << "--date=" + QDate::currentDate().toString(Qt::DefaultLocaleShortDate);
+
+    foreach (const auto& st, d->m_selectedTransactions) {
+      const auto& t = st.transaction();
+        const auto& s = st.split();
+        QString txt = "Session de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
+        txt += ";"; // no second label
+        const auto amount = splitPayment[s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+        txt += ";" + amount; // unit price
+        txt += ";1"; // number of units
+        txt += ";0%"; // taxes
+        txt += ";" + amount; // total price
+
+        args << "--ligne=" + txt;
+    }
+    qInfo() << "Calling java with args" << args.join("   ");
+    QProcess process;
+    process.setProgram("java");
+    process.setArguments(args);
+    //process.setWorkingDirectory();
+    //process.setStandardOutputFile(QProcess::nullDevice());
+    //process.setStandardErrorFile(QProcess::nullDevice());
+    qint64 pid;
+    process.startDetached(&pid);
+    const auto ok = KMessageBox::warningContinueCancel(this, i18n("The invoice is being generated.\n\nIs this document OK to send ?"), i18n("Invoice result"));
+    if (ok != KMessageBox::Continue)
+      return;
+    process.waitForFinished();
+    
+    int inc = increment[0].split('=')[1].toInt();
+    auto dd = acc.description();
+    dd.replace("facture-" + totalCompany + "-nextincrement=" + QString::number(inc), "facture-" + totalCompany + "-nextincrement=" + QString::number(inc + 1));
+    d->m_currentAccount.setDescription(dd);
+    // open an engine transaction
+    auto m_ft = new MyMoneyFileTransaction();
+    file->modifyAccount(d->m_currentAccount);
+    m_ft->commit();
+    delete m_ft;
+    QFile::copy(filepath+".pdf", "/tmp/" + invoice + ".pdf");
+  } catch (MyMoneyException &e) {
+    qDebug() << "Cannot generate invoice";
+    KMessageBox::error(this, i18n("Cannot generate invoice : %1", e.what()), i18n("Invoice error"));
   }
 }
 
