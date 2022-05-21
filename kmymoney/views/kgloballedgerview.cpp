@@ -294,12 +294,11 @@ void KGlobalLedgerView::updateLedgerActionsInternal()
     Action::CancelTransaction, Action::DeleteTransaction, Action::MatchTransaction,
     Action::AcceptTransaction, Action::DuplicateTransaction, Action::AddReversingTransaction, Action::ToggleReconciliationFlag, Action::MarkCleared,
     Action::GoToAccount, Action::GoToPayee, Action::AssignTransactionsNumber, Action::NewScheduledTransaction,
-    Action::CombineTransactions, Action::CopySplits,
+    Action::CombineTransactions, Action::CopySplits, Action::InvoiceTransaction
   };
 
   for (const auto& a : actionsToBeDisabled)
     pActions[a]->setEnabled(false);
-  pActions[Action::InvoiceTransaction]->setEnabled(true);
 
   const auto file = MyMoneyFile::instance();
 
@@ -330,6 +329,7 @@ void KGlobalLedgerView::updateLedgerActionsInternal()
       pActions[Action::AddReversingTransaction]->setToolTip(tooltip);
 
       if (canEditTransactions(d->m_selectedTransactions, tooltip)) {
+        pActions[Action::InvoiceTransaction]->setEnabled(true);
         pActions[Action::EditTransaction]->setEnabled(true);
         // editing splits is allowed only if we have one transaction selected
         if (d->m_selectedTransactions.count() == 1) {
@@ -1880,6 +1880,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   const auto file = MyMoneyFile::instance();
   const auto acc = d->m_currentAccount;
   const auto currency = file->currency(acc.currencyId());
+  const auto tagInvoiced = file->tagByName("Facturé");
 
   auto args = QStringList();
   args << "-jar" << "/tmp/autoInvoice-0.1.jar" << "--verbose" << "--force";
@@ -1919,6 +1920,10 @@ void KGlobalLedgerView::slotInvoiceTransactions()
           payment = "Virement";
         else if (name == "Espèce")
           payment = "Espèces";
+        if (tagId == tagInvoiced.id()) {
+          KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Already invoiced", t.id()), i18n("Invoice error"));
+          return;
+        }
       }
       if (company == NULL){
         KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no company detected in tags", t.id()), i18n("Invoice error"));
@@ -2008,11 +2013,23 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     auto dd = acc.description();
     dd.replace("facture-" + totalCompany + "-nextincrement=" + QString::number(inc), "facture-" + totalCompany + "-nextincrement=" + QString::number(inc + 1));
     d->m_currentAccount.setDescription(dd);
+
     // open an engine transaction
     auto m_ft = new MyMoneyFileTransaction();
     file->modifyAccount(d->m_currentAccount);
+    foreach (const auto& st, d->m_selectedTransactions) {
+      auto tr = st.transaction();
+      auto split = tr.firstSplit();
+      auto tags = split.tagIdList();
+      tags << tagInvoiced.id();
+      split.setTagIdList(tags);
+      split.setMemo(split.memo() + (split.memo().isEmpty() || split.memo().endsWith('\n') ? "" : "\n") + "Facture " + invoice);
+      tr.modifySplit(split);
+      file->modifyTransaction(tr);
+    }
     m_ft->commit();
     delete m_ft;
+
     QFile::copy(filepath+".pdf", "/tmp/" + invoice + ".pdf");
   } catch (MyMoneyException &e) {
     qDebug() << "Cannot generate invoice";
