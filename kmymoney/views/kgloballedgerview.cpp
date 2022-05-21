@@ -63,11 +63,13 @@
 #include "mymoneytransaction.h"
 #include "mymoneytransactionfilter.h"
 #include "mymoneysplit.h"
+#include "mymoneytag.h"
 #include "transaction.h"
 #include "transactionform.h"
 #include "widgetenums.h"
 #include "mymoneyenums.h"
 #include "menuenums.h"
+#include <QtCore/qprocess.h>
 
 using namespace eMenu;
 
@@ -90,6 +92,7 @@ KGlobalLedgerView::KGlobalLedgerView(QWidget *parent) :
     {Action::GoToPayee,                 [this](){ KGlobalLedgerView::slotGoToPayee(); }},
     {Action::GoToAccount,               [this](){ KGlobalLedgerView::slotGoToAccount(); }},
     {Action::MatchTransaction,          [this](){ KGlobalLedgerView::slotMatchTransactions(); }},
+    {Action::InvoiceTransaction,        [this](){ KGlobalLedgerView::slotInvoiceTransactions(); }},
     {Action::CombineTransactions,       [this](){ KGlobalLedgerView::slotCombineTransactions(); }},
     {Action::ToggleReconciliationFlag,  [this](){ KGlobalLedgerView::slotToggleReconciliationFlag(); }},
     {Action::MarkCleared,               [this](){ KGlobalLedgerView::slotMarkCleared(); }},
@@ -295,6 +298,7 @@ void KGlobalLedgerView::updateLedgerActionsInternal()
 
   for (const auto& a : actionsToBeDisabled)
     pActions[a]->setEnabled(false);
+  pActions[Action::InvoiceTransaction]->setEnabled(true);
 
   const auto file = MyMoneyFile::instance();
 
@@ -1864,6 +1868,119 @@ void KGlobalLedgerView::slotMatchTransactions()
     d->transactionMatch();
   else
     d->transactionUnmatch();
+}
+
+void KGlobalLedgerView::slotInvoiceTransactions()
+{
+  Q_D(KGlobalLedgerView);
+  // suppress copy transactions if view not visible
+  // or in edit mode
+  if (!isVisible() || d->m_inEditMode)
+    return;
+
+  const auto file = MyMoneyFile::instance();
+  const auto acc = file->account(d->m_lastSelectedAccountID);
+  const auto currency = file->currency(acc.currencyId());
+
+  auto args = QStringList();
+  args << "-jar" << "/tmp/autoInvoice-0.1.jar" << "--verbose" << "--force";
+  QString payeeId = NULL;
+  MyMoneyMoney totalValue;
+  QString totalCompany = NULL;
+  QMap<QString, MyMoneyMoney> totalPayment;
+  foreach (const auto& st, d->m_selectedTransactions) {
+    const auto& s = st.split();
+    const auto& t = st.transaction();
+    if (s.payeeId().isEmpty()) {
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No payee", t.id()), i18n("Invoice error"));
+      return;
+    }
+    if (payeeId == NULL)
+      payeeId = s.payeeId();
+    else if (payeeId != s.payeeId()) {
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different payees", t.id()), i18n("Invoice error"));
+      return;
+    }
+    
+    totalValue += s.value();
+    
+    QString company = NULL;
+    QString payment = NULL;
+    foreach (const auto& tagId, s.tagIdList()) {
+      const auto name = file->tag(tagId).name();
+      if (name == "auto-entreprise")
+        company = "NATHALIE";
+      else if (name == "L'ESCALE")
+        company = "ESCALE";
+      else if (name == "CB")
+        payment = "Carte Bancaire";
+      else if (name == "Virement")
+        payment = "Virement";
+      else if (name == "Espèce")
+        payment = "Espèces";
+    }
+    if (company == NULL){
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no company detected in tags", t.id()), i18n("Invoice error"));
+      return;
+    }
+    if (totalCompany == NULL)
+      totalCompany = company;
+    else if (totalCompany != company) {
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different companies in tags", t.id()), i18n("Invoice error"));
+      return;
+    }
+    
+    if (payment == NULL){
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no payment detected in tags", t.id()), i18n("Invoice error"));
+      return;
+    }
+    totalPayment[payment] += s.value();
+  }
+  
+  args << "--output=/tmp/facture" << "--numero=NUMFACTURE";
+  foreach (const auto& pay, totalPayment.keys())
+    args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+  args << "--entreprise=" + totalCompany;
+  args << "--montant=" + totalValue.formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+  const auto p = file->payee(payeeId);
+  const auto addr = p.address().split('\n', Qt::SkipEmptyParts);
+  auto name = p.name();
+  auto addr1 = QString("");
+  auto addr2 = QString("");
+  if (addr.length() > 0)
+    name = addr[0];
+  if (addr.length() > 1)
+    addr1 = addr[1];
+  if (addr.length() > 2)
+    addr2 = addr[2];
+  args << "--client=" + name << "--adresse1=" + addr1 << "--adresse2=" + addr2 << "--cpville=" + p.postcode() + " " + p.city() << "--pays=" + p.state();
+  args << "--date=" + QDate::currentDate().toString(Qt::DefaultLocaleShortDate);
+
+      
+  foreach (const auto& st, d->m_selectedTransactions) {
+    const auto& t = st.transaction();
+    try {
+      const auto& s = st.split();
+      QString txt = "Session de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
+      txt += ";"; // no second label
+      const auto amount = s.value().formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+      txt += ";" + amount; // unit price
+      txt += ";1"; // number of units
+      txt += ";0%"; // taxes
+      txt += ";" + amount; // total price
+
+      args << "--ligne=" + txt;
+      qDebug() << "Calling java with args" << args.join("\n");
+      QProcess::startDetached( "java", args);
+      const auto ok = KMessageBox::warningContinueCancel(this, i18n("Is this document OK to send ?"), i18n("Invoice result"));
+      if (ok != KMessageBox::Continue)
+        return;
+      
+    } catch (MyMoneyException &e) {
+      qDebug() << "Cannot generate invoice for " << t.id();
+      KMessageBox::error(this, i18n("Cannot generate invoice for %1 : %2", t.id(), e.what()), i18n("Invoice error"));
+    }
+  }
 }
 
 void KGlobalLedgerView::slotCombineTransactions()

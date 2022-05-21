@@ -272,6 +272,7 @@ private Q_SLOTS:
   void slotGoToPayee();
   void slotGoToAccount();
   void slotMatchTransactions();
+  void slotInvoiceTransactions();
   void slotCombineTransactions();
   void slotToggleReconciliationFlag();
   void slotMarkCleared();

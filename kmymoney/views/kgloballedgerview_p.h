@@ -355,6 +355,7 @@ public:
     m_buttonbar->addAction(pActions[eMenu::Action::CancelTransaction]);
     m_buttonbar->addAction(pActions[eMenu::Action::AcceptTransaction]);
     m_buttonbar->addAction(pActions[eMenu::Action::MatchTransaction]);
+    m_buttonbar->addAction(pActions[eMenu::Action::InvoiceTransaction]);
 
     // create the transaction form frame
     m_formFrame = new QFrame(q);

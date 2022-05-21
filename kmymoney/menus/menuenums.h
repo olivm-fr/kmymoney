@@ -74,6 +74,7 @@ namespace eMenu {
     EnterTransaction, CancelTransaction,
     DuplicateTransaction, AddReversingTransaction,
     MatchTransaction, AcceptTransaction,
+    InvoiceTransaction,
     EditSplits, CopySplits,
     ToggleReconciliationFlag, MarkCleared,
     MarkReconciled, MarkNotReconciled,
