@@ -1883,7 +1883,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   const auto tagInvoiced = file->tagByName("Facturé");
 
   auto args = QStringList();
-  args << "-jar" << "/tmp/autoInvoice-0.1.jar" << "--verbose" << "--force";
+  args << "-jar" << "/tmp/autoInvoice-0.1.jar" << "--verbose" << "--force" << "--ouvrir";
   QString payeeId = NULL;
   MyMoneyMoney totalValue;
   QString totalCompany = NULL;
@@ -1963,7 +1963,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     if (increment.length() > 0)
       invoice += increment[0].split('=')[1].rightJustified(4, '0');    
     
-    args << "--output=" + filepath << "--numero="+invoice;
+    args << "--sortie=" + filepath << "--numero="+invoice;
     foreach (const auto& pay, totalPayment.keys())
       args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
     args << "--entreprise=" + totalCompany;
@@ -2002,8 +2002,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     //process.setWorkingDirectory();
     //process.setStandardOutputFile(QProcess::nullDevice());
     //process.setStandardErrorFile(QProcess::nullDevice());
-    qint64 pid;
-    process.startDetached(&pid);
+    process.start();
     const auto ok = KMessageBox::warningContinueCancel(this, i18n("The invoice is being generated.\n\nIs this document OK to send ?"), i18n("Invoice result"));
     if (ok != KMessageBox::Continue)
       return;
@@ -2031,6 +2030,18 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     delete m_ft;
 
     QFile::copy(filepath+".pdf", "/tmp/" + invoice + ".pdf");
+    args = QStringList();
+    QString me = "nathalie@home.fr";
+    args << "-compose" << "from="+me+",to="+p.email()+",bcc="+me+",subject='Votre facture',attachment=/tmp/"+invoice+".pdf,body='Bonjour,\nJe vous prie de trouver ci-joint votre facture.\nCordialement\nNathalie',format=html";
+    qInfo() << "Calling thunderbird with args" << args.join("   ");
+    QProcess process2;
+    process2.setProgram("thunderbird");
+    process2.setArguments(args);
+    //process2.setWorkingDirectory();
+    process2.setStandardOutputFile(QProcess::nullDevice());
+    process2.setStandardErrorFile(QProcess::nullDevice());
+    qint64 pid;
+    process2.startDetached(&pid);
   } catch (MyMoneyException &e) {
     qDebug() << "Cannot generate invoice";
     KMessageBox::error(this, i18n("Cannot generate invoice : %1", e.what()), i18n("Invoice error"));
