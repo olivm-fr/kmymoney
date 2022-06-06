@@ -1876,6 +1876,20 @@ QString normalize(const QString s)
     QString output(s.normalized(QString::NormalizationForm_D));
     return output.replace(QRegExp("[^a-zA-Z0-9]"), "");
 }
+QString getPayment(MyMoneyFile* file, QList<QString> tags)
+{
+  foreach (const auto& tagId, tags) {
+    const auto name = file->tag(tagId).name();
+    if (name == "CB")
+      return "Carte Bancaire";
+    if (name == "Virement")
+      return "Virement";
+    if (name == "Espèce")
+      return "Espèces";
+  }
+  return NULL;
+}
+
 void KGlobalLedgerView::slotInvoiceTransactions()
 {
   Q_D(KGlobalLedgerView);
@@ -1892,7 +1906,8 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   QString payeeId = NULL;
   MyMoneyMoney totalValue;
   QString totalCompany = NULL;
-  QMap<QString, MyMoneyMoney> splitPayment;
+  QMap<QString, MyMoneyMoney> countPayment; // used if lines are averaged by payment method
+  //QMap<QString, MyMoneyMoney> splitPayment; // used if lines are independant
   QMap<QString, MyMoneyMoney> totalPayment;
   try {
     foreach (const auto& st, d->m_selectedTransactions) {
@@ -1909,22 +1924,13 @@ void KGlobalLedgerView::slotInvoiceTransactions()
         return;
       }
       
-      auto amount = s.value();
-      
       QString company = NULL;
-      QString payment = NULL;
       foreach (const auto& tagId, s.tagIdList()) {
         const auto name = file->tag(tagId).name();
         if (name == "auto-entreprise")
           company = "NATHALIE";
         else if (name == "L'ESCALE")
           company = "ESCALE";
-        else if (name == "CB")
-          payment = "Carte Bancaire";
-        else if (name == "Virement")
-          payment = "Virement";
-        else if (name == "Espèce")
-          payment = "Espèces";
         if (tagId == tagInvoiced.id()) {
           KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Already invoiced", t.id()), i18n("Invoice error"));
           return;
@@ -1941,6 +1947,8 @@ void KGlobalLedgerView::slotInvoiceTransactions()
         return;
       }
       
+      auto amount = s.value();
+      QString payment = getPayment(file, s.tagIdList());
       if (payment == NULL){
         KMessageBox::error(this, i18n("Cannot generate invoice for %1 : no payment detected in tags", t.id()), i18n("Invoice error"));
         return;
@@ -1951,8 +1959,12 @@ void KGlobalLedgerView::slotInvoiceTransactions()
         if (tarif.length() > 0)
           amount = MyMoneyMoney(tarif[0].split('=')[1]);
       }
+      if(!countPayment.contains(payment))
+          countPayment.insert(payment, MyMoneyMoney::ONE);
+      else
+          countPayment[payment] += MyMoneyMoney::ONE;
       totalPayment[payment] += amount;
-      splitPayment[t.id()+s.id()] = amount;
+      //splitPayment[t.id()+s.id()] = amount;
       totalValue += amount;
     }
     
@@ -1999,9 +2011,11 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     foreach (const auto& st, d->m_selectedTransactions) {
       const auto& t = st.transaction();
         const auto& s = st.split();
-        QString txt = "Session de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
+        QString txt = "Séance de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
         txt += ";"; // no second label
-        const auto amount = splitPayment[t.id()+s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+        //const auto amount = splitPayment[t.id()+s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+        QString payment = getPayment(file, s.tagIdList());
+        const auto amount = (totalPayment[payment]/countPayment[payment]).formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
         txt += ";" + amount; // unit price
         txt += ";1"; // number of units
         txt += ";0%"; // taxes
@@ -2017,7 +2031,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     //process.setStandardOutputFile(QProcess::nullDevice());
     //process.setStandardErrorFile(QProcess::nullDevice());
     process.start();
-    const auto ok = KMessageBox::warningContinueCancel(this, i18n("The invoice is being generated.\n\nIs this document OK to send ?"), i18n("Invoice result"));
+    const auto ok = KMessageBox::warningContinueCancel(this, i18n("Breathe in... Breathe out...\n\nThe invoice is being generated for you.\n\nWill this document be OK to send ?"), i18n("Invoice result"));
     if (ok != KMessageBox::Continue)
       return;
     process.waitForFinished();
