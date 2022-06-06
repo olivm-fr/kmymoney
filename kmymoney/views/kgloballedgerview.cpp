@@ -1952,7 +1952,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
           amount = MyMoneyMoney(tarif[0].split('=')[1]);
       }
       totalPayment[payment] += amount;
-      splitPayment[s.id()] = amount;
+      splitPayment[t.id()+s.id()] = amount;
       totalValue += amount;
     }
     
@@ -2001,7 +2001,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
         const auto& s = st.split();
         QString txt = "Session de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
         txt += ";"; // no second label
-        const auto amount = splitPayment[s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
+        const auto amount = splitPayment[t.id()+s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
         txt += ";" + amount; // unit price
         txt += ";1"; // number of units
         txt += ";0%"; // taxes
