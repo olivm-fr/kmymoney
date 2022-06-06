@@ -1871,6 +1871,11 @@ void KGlobalLedgerView::slotMatchTransactions()
     d->transactionUnmatch();
 }
 
+QString normalize(const QString s)
+{
+    QString output(s.normalized(QString::NormalizationForm_D));
+    return output.replace(QRegExp("[^a-zA-Z0-9]"), "");
+}
 void KGlobalLedgerView::slotInvoiceTransactions()
 {
   Q_D(KGlobalLedgerView);
@@ -1951,24 +1956,33 @@ void KGlobalLedgerView::slotInvoiceTransactions()
       totalValue += amount;
     }
     
-    const auto filepath = QString("/tmp/facture");
     const auto desc = acc.description().split('\n', Qt::SkipEmptyParts);
+    const auto p = file->payee(payeeId);
     QString invoice = "FACTURE-XXX";
     const auto prefix = desc.filter("facture-" + totalCompany + "-prefix=");
     if (prefix.length() > 0)
       invoice = prefix[0].split('=')[1];
     invoice.replace(QString("%YEAR%"), QString::number(QDate::currentDate().year()));
     invoice.replace(QString("%MONTH%"), QString::number(QDate::currentDate().month()).rightJustified(2, '0'));
+    invoice.replace(QString("%NAME%"), normalize(p.name()));
     const auto increment = desc.filter("facture-" + totalCompany + "-nextincrement=");
     if (increment.length() > 0)
-      invoice += increment[0].split('=')[1].rightJustified(4, '0');    
+      invoice += increment[0].split('=')[1].rightJustified(4, '0');
     
-    args << "--sortie=" + filepath << "--numero="+invoice;
+    QString filepath = QString("/tmp/") + invoice;
+    const auto nametemplate = desc.filter("facture-" + totalCompany + "-name=");
+    if (nametemplate.length() > 0)
+      filepath = nametemplate[0].split('=')[1];
+    filepath.replace(QString("%YEAR%"), QString::number(QDate::currentDate().year()));
+    filepath.replace(QString("%MONTH%"), QString::number(QDate::currentDate().month()).rightJustified(2, '0'));
+    filepath.replace(QString("%NAME%"), normalize(p.name()));
+    filepath.replace(QString("%NUMBER%"), invoice);
+    
+    args << "--sortie=/tmp/" + filepath << "--numero="+invoice;
     foreach (const auto& pay, totalPayment.keys())
       args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
     args << "--entreprise=" + totalCompany;
     args << "--montant=" + totalValue.formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
-    const auto p = file->payee(payeeId);
     const auto addr = p.address().split('\n', Qt::SkipEmptyParts);
     auto name = p.name();
     auto addr1 = QString("");
@@ -2029,10 +2043,11 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     m_ft->commit();
     delete m_ft;
 
-    QFile::copy(filepath+".pdf", "/tmp/" + invoice + ".pdf");
+    QString path = "/tmp/";
+    QFile::copy("/tmp/"+filepath+".pdf", path + filepath + ".pdf");
     args = QStringList();
     QString me = "nathalie@home.fr";
-    args << "-compose" << "from="+me+",to="+p.email()+",bcc="+me+",subject='Votre facture',attachment=/tmp/"+invoice+".pdf,body='Bonjour,\nJe vous prie de trouver ci-joint votre facture.\nCordialement\nNathalie',format=html";
+    args << "-compose" << "from="+me+",to="+p.email()+",bcc="+me+",subject='Votre facture',attachment="+path+filepath+".pdf,body='Bonjour,\nJe vous prie de trouver ci-joint votre facture.\nCordialement\nNathalie',format=html";
     qInfo() << "Calling thunderbird with args" << args.join("   ");
     QProcess process2;
     process2.setProgram("thunderbird");
