@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from weboob.core import Weboob
+from weboob.applications.boobank import Boobank
 from weboob.capabilities.bank import CapBank
 
 def get_protocols():
@@ -40,9 +41,10 @@ def get_backends():
     return result
 
 def get_accounts(bname):
-    w = Weboob()
+    wbb = Boobank()
+    w = wbb.weboob
 
-    w.load_backends(names=[bname])
+    w.load_backends(names=[bname], storage=wbb.create_storage())
     backend = w.get_backend(bname)
 
     results = {}
@@ -56,9 +58,10 @@ def get_accounts(bname):
     return results
 
 def get_transactions(bname, accid, maximum):
-    w = Weboob()
+    wbb = Boobank()
+    w = wbb.weboob
 
-    w.load_backends(names=[bname])
+    w.load_backends(names=[bname], storage=wbb.create_storage())
     backend = w.get_backend(bname)
 
     acc = backend.get_account(accid)
