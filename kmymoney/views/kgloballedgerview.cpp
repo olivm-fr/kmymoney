@@ -1902,7 +1902,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   const auto tagInvoiced = file->tagByName("Facturé");
 
   auto args = QStringList();
-  args << "-jar" << "/tmp/autoInvoice-0.1.jar" << "--verbose" << "--force" << "--ouvrir";
+  args << "-jar" << "/tmp/autoInvoice-1.1.jar" << "--verbose" << "--force" << "--ouvrir";
   QString payeeId = NULL;
   MyMoneyMoney totalValue;
   QString totalCompany = NULL;
@@ -1931,6 +1931,8 @@ void KGlobalLedgerView::slotInvoiceTransactions()
           company = "NATHALIE";
         else if (name == "L'ESCALE")
           company = "ESCALE";
+        else if (name == "Hetopia")
+          company = "HETOPIA";
         if (tagId == tagInvoiced.id()) {
           KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Already invoiced", t.id()), i18n("Invoice error"));
           return;
