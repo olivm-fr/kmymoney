@@ -532,11 +532,11 @@ bool MyMoneyStatementReader::import(const MyMoneyStatement& s, QStringList& mess
       }
       qDebug("Processing transactions done (%s)", qPrintable(d->m_account.name()));
 
-    } catch (const MyMoneyException &e) {
+    } catch (const std::runtime_error &e) {
       if (QString::fromLatin1(e.what()).contains("USERABORT"))
         m_userAbort = true;
       else
-        qDebug("Caught exception from processTransactionEntry() not caused by USERABORT: %s", e.what());
+        qWarning("Caught exception from processTransactionEntry() not caused by USERABORT: %s", e.what());
     }
     signalProgress(-1, -1);
   }

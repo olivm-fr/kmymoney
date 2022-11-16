@@ -240,6 +240,7 @@ void Weboob::gotAccount()
         ks.m_listTransactions += kt;
   }
 
+  qInfo() << "Importing " << ks.m_listTransactions.size() << " transactions";
   statementInterface()->import(ks);
 
   d->progress->hide();
