@@ -1931,8 +1931,6 @@ void KGlobalLedgerView::slotInvoiceTransactions()
           company = "NATHALIE";
         else if (name == "L'ESCALE")
           company = "ESCALE";
-        else if (name == "Hetopia")
-          company = "HETOPIA";
         if (tagId == tagInvoiced.id()) {
           KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Already invoiced", t.id()), i18n("Invoice error"));
           return;

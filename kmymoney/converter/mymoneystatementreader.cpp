@@ -73,6 +73,7 @@
 #include "mymoneyenums.h"
 #include "modelenums.h"
 #include "kmymoneyutils.h"
+#include "mymoneytag.h"
 
 using namespace eMyMoney;
 
@@ -1250,6 +1251,28 @@ void MyMoneyStatementReader::processTransactionEntry(const MyMoneyStatement::Tra
   if (!(s2 == MyMoneySplit()))
     transactionUnderImport.addSplit(s2);
 
+  // OMA
+  QList<QString> tagList = statementTransactionUnderImport.m_listTags;
+  if (!tagList.isEmpty()) {
+    qInfo() << QLatin1String("Start matching tags") << tagList;
+    QList<QString> tagIdList;
+    foreach (const auto tag, tagList) {
+      try {
+        MyMoneyTag tagObj = file->tagByName(tag);
+        tagIdList << tagObj.id();
+      } catch (const MyMoneyException &) {
+        qDebug() << QLatin1String("Unknown tag") << tag;     
+        MyMoneyTag ta;
+        ta.setName(tag);
+        file->addTag(ta);
+        tagIdList << ta.id();
+      }
+    }
+    if (!tagIdList.isEmpty())
+      s1.setTagIdList(tagIdList);
+  }
+  // END OMA
+  
   transactionUnderImport.addSplit(s1);
 
   // check if we need to add/update a VAT assignment

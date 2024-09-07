@@ -73,6 +73,8 @@ public:
     QString m_strSymbol;
     QString m_strSecurity;
     QList<Split> m_listSplits;
+    // OMA
+    QList<QString> m_listTags;
   };
 
   struct Price {

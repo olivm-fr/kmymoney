@@ -1163,6 +1163,15 @@ void MyMoneyQifReader::processTransactionEntry()
   d->fixMultiLineMemo(tr.m_strMemo);
   s1.m_strMemo = tr.m_strMemo;
   // tr.m_listSplits.append(s1);
+  
+  // OMA specific tag management
+  for (int i=1 ; ; i++) {
+    QString tag = extractLine('G', i);
+    if (tag.isEmpty())
+      break;
+    tr.m_listTags.append(tag);
+  }
+    
 
   //             split transaction
   //      ****** ensure each field is ******
