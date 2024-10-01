@@ -16,17 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from weboob.core import Weboob
-from weboob.applications.boobank import Boobank
-from weboob.capabilities.bank import CapBank
+# TESTS
+# import sys
+# sys.path.append( '../kmymoney/plugins/weboob/interface/' )
+# import kmymoneyweboob
+# kmymoneyweboob.get_accounts('soge')
+
+from woob.core import Woob
+from woob.applications.bank import Appbank
+from woob.capabilities.bank import CapBank
 
 def get_protocols():
-    w = Weboob()
+    w = Woob()
 
     return w.repositories.get_all_modules_info(CapBank).keys()
 
 def get_backends():
-    w = Weboob()
+    w = Woob()
 
     result = {}
     for instance_name, name, params in sorted(w.backends_config.iter_backends()):
@@ -41,8 +47,8 @@ def get_backends():
     return result
 
 def get_accounts(bname):
-    wbb = Boobank()
-    w = wbb.weboob
+    wbb = Appbank()
+    w = wbb.woob
 
     w.load_backends(names=[bname], storage=wbb.create_storage())
     backend = w.get_backend(bname)
@@ -58,8 +64,8 @@ def get_accounts(bname):
     return results
 
 def get_transactions(bname, accid, maximum):
-    wbb = Boobank()
-    w = wbb.weboob
+    wbb = Appbank()
+    w = wbb.woob
 
     w.load_backends(names=[bname], storage=wbb.create_storage())
     backend = w.get_backend(bname)
