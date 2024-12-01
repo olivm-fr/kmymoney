@@ -1927,9 +1927,9 @@ void KGlobalLedgerView::slotInvoiceTransactions()
       QString company = NULL;
       foreach (const auto& tagId, s.tagIdList()) {
         const auto name = file->tag(tagId).name();
-        if (name == "auto-entreprise")
+        if (name == "Auto-E")
           company = "NATHALIE";
-        else if (name == "L'ESCALE")
+        else if (name == "Escale")
           company = "ESCALE";
         if (tagId == tagInvoiced.id()) {
           KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Already invoiced", t.id()), i18n("Invoice error"));
