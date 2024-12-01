@@ -98,6 +98,7 @@ public:
   QList<Account> getAccounts(QString backend);
 
   Account getAccount(QString backend, QString account, QString max);
+  Account echo(Account);
 
 private:
 

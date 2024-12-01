@@ -176,7 +176,9 @@ bool Weboob::updateAccount(const MyMoneyAccount& kacc, bool moreAccounts)
   d->progress->setMaximum(0);
   d->progress->setMinimumDuration(0);
 
-  QFuture<WeboobInterface::Account> future = QtConcurrent::run(&d->weboob, &WeboobInterface::getAccount, bname, id, max);
+  //QFuture<WeboobInterface::Account> future = QtConcurrent::run(&d->weboob, &WeboobInterface::getAccount, bname, id, max);
+  WeboobInterface::Account acc = d->weboob.getAccount(bname, id, max);
+  QFuture<WeboobInterface::Account> future = QtConcurrent::run(&d->weboob, &WeboobInterface::echo, acc);
   d->watcher.setFuture(future);
 
   d->progress->exec();

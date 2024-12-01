@@ -21,6 +21,7 @@
 #include <QDebug>
 #include <QTemporaryFile>
 #include <memory>
+#include <mutex>
 
 #include "weboobinterface.h"
 
@@ -47,12 +48,41 @@
 
 #include "../weboobexc.h"
 
+// OMA from https://stackoverflow.com/questions/47167251/pygilstate-ensure-causing-deadlock
+class PyContextManager {
+   private:
+      static volatile bool python_threads_initialized;
+   public:
+      static std::mutex pyContextLock;
+      PyContextManager(/* if python_threads_initialized is false, call PyEval_InitThreads and set the variable to true */);
+      ~PyContextManager();
+};
+
+#define PY_SAFE_CONTEXT(expr)                   \
+{                                               \
+   std::unique_lock<std::mutex>(pyContextLock); \
+   /*PyGILState_STATE gstate;                     \
+   gstate = PyGILState_Ensure();*/                \
+   try {                                        \
+      expr;                                     \
+   } catch (QException e) {                      \
+      /*PyGILState_Release(gstate);*/               \
+      throw e;                                  \
+   }                                            \
+   /*PyGILState_Release(gstate);*/                  \
+}
+
+
 WeboobInterface::WeboobInterface() :
   m_weboobInterface(nullptr)
 {
   Q_INIT_RESOURCE(weboobinterface);
 
   Py_Initialize();
+  //PyEval_InitThreads();
+  //PyEval_ReleaseLock();
+  // cf https://stackoverflow.com/questions/4866701/python-pygilstate-ensure-release-causes-segfault-while-returning-to-c-from-p
+
   qDebug() << "Python interpreter found:" << Py_GetVersion();
 
   const auto scriptResourceName = ":/plugins/weboob/kmymoneyweboob.py";
@@ -75,35 +105,47 @@ WeboobInterface::WeboobInterface() :
 
     qDebug() << "Attempt to load the" << moduleName << "python module from" << moduleLocation;
 
-    PyObject *sys = PyImport_ImportModule("sys");
-    PyObject *path = PyObject_GetAttrString(sys, "path");
-    PyObject *pyLocation = PyUnicode_FromString(moduleLocation);
-    PyList_Append(path, pyLocation);
+    PY_SAFE_CONTEXT(
+         PyObject *sys = PyImport_ImportModule("sys");
+         if (sys == nullptr) {
+             qWarning() << "The dependency 'sys' Python module failed to load";
+             PyErr_Print();
+         }
+         PyObject *path = PyObject_GetAttrString(sys, "path");
+         if (path == nullptr) {
+             qWarning() << "The 'path' Python variable failed to load from 'sys' module";
+             PyErr_Print();
+         }
+         PyObject *pyLocation = PyUnicode_FromString(moduleLocation);
+         PyList_Append(path, pyLocation);
 
-    m_weboobInterface = PyImport_ImportModule(moduleName);
+         m_weboobInterface = PyImport_ImportModule(moduleName);
 
-    if (m_weboobInterface == nullptr)
-    {
-      PyErr_Print();
-    }
-    else
-    {
-      qDebug() << moduleName << "Python module loaded successfully";
-    }
+         if (m_weboobInterface == nullptr)
+         {
+             PyErr_Print();
+         }
+         else
+         {
+             qDebug() << moduleName << "Python module loaded successfully";
+         }
 
-    Py_DECREF(sys);
-    Py_DECREF(path);
-    Py_DECREF(pyLocation);
+         Py_DECREF(sys);
+         Py_DECREF(path);
+         Py_DECREF(pyLocation);
+     )
   }
 }
 
 WeboobInterface::~WeboobInterface()
 {
-  if (m_weboobInterface)
-    Py_DECREF(m_weboobInterface);
+  PY_SAFE_CONTEXT(
+    if (m_weboobInterface)
+      Py_DECREF(m_weboobInterface);
 
-  if (Py_IsInitialized())
-    Py_Finalize();
+    if (Py_IsInitialized())
+      Py_Finalize();
+  )
 }
 
 PyObject* WeboobInterface::execute(QString method, QVariantList args)
@@ -111,9 +153,11 @@ PyObject* WeboobInterface::execute(QString method, QVariantList args)
   QMutex mutex;
   QMutexLocker locker(&mutex);
 
+
   PyObject* retVal = nullptr;
   auto ba = method.toLocal8Bit();
   const char *cmethod = ba.data();
+  qInfo() << "WOOB Querying " << QString(cmethod);
   auto pyFunc = PyObject_GetAttrString(m_weboobInterface, cmethod);
   if (pyFunc && PyCallable_Check(pyFunc)) {
     PyObject* pArgs = nullptr;
@@ -164,18 +208,20 @@ QList<WeboobInterface::Backend> WeboobInterface::getBackends()
   if(!m_weboobInterface)
     return backendsList;
 
-  auto pValue = execute("get_backends", QVariantList());
-  if (pValue) {
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(pValue, &pos, &key, &value)) {
-      WeboobInterface::Backend backend;
-      backend.name = PyUnicode_AsUTF8(key);
-      backend.module = extractDictStringValue(value, "module");
-      backendsList.append(backend);
+  PY_SAFE_CONTEXT(
+    auto pValue = execute("get_backends", QVariantList());
+    if (pValue) {
+      PyObject *key; PyObject *value;
+      Py_ssize_t pos = 0;
+      while (PyDict_Next(pValue, &pos, &key, &value)) {
+        WeboobInterface::Backend backend;
+        backend.name = PyUnicode_AsUTF8(key);
+        backend.module = extractDictStringValue(value, "module");
+        backendsList.append(backend);
+      }
+      Py_DECREF(pValue);
     }
-    Py_DECREF(pValue);
-  }
+  )
 
   return backendsList;
 }
@@ -187,25 +233,29 @@ QList<WeboobInterface::Account> WeboobInterface::getAccounts(QString backend)
   if(!m_weboobInterface)
     return accountsList;
 
-  auto pValue = execute("get_accounts", QVariantList{backend});
-  if (pValue) {
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(pValue, &pos, &key, &value)) {
+  PY_SAFE_CONTEXT(
+    auto pValue = execute("get_accounts", QVariantList{backend});
+    if (pValue) {
+      PyObject *key; PyObject *value;
+      Py_ssize_t pos = 0;
+      while (PyDict_Next(pValue, &pos, &key, &value)) {
 
-      WeboobInterface::Account account;
-      account.id = PyUnicode_AsUTF8(key);
-      account.name = extractDictStringValue(value, "name");
-      account.balance = MyMoneyMoney(extractDictLongValue(value, "balance"), 100);
-      account.type = (WeboobInterface::Account::type_t)extractDictLongValue(value, "type");
+        WeboobInterface::Account account;
+        account.id = PyUnicode_AsUTF8(key);
+        account.name = extractDictStringValue(value, "name");
+        account.balance = MyMoneyMoney(extractDictLongValue(value, "balance"), 100);
+        account.type = (WeboobInterface::Account::type_t)extractDictLongValue(value, "type");
 
-      accountsList.append(account);
+        accountsList.append(account);
+      }
+      Py_DECREF(pValue);
     }
-    Py_DECREF(pValue);
-  }
+  )
 
   return accountsList;
 }
+
+WeboobInterface::Account WeboobInterface::echo(WeboobInterface::Account acc) { return acc; }
 
 WeboobInterface::Account WeboobInterface::getAccount(QString backend, QString accid, QString max)
 {
@@ -213,38 +263,40 @@ WeboobInterface::Account WeboobInterface::getAccount(QString backend, QString ac
   if(!m_weboobInterface)
     return acc;
 
-  auto retVal = execute("get_transactions", QVariantList{backend, accid, max});
-  if (retVal) {
-    acc.id = extractDictStringValue(retVal, "id");
-    acc.name = extractDictStringValue(retVal, "name");
-    acc.balance = MyMoneyMoney(extractDictLongValue(retVal, "balance"), 100);
-    acc.type = (WeboobInterface::Account::type_t)extractDictLongValue(retVal, "type");
+  PY_SAFE_CONTEXT(
+    auto retVal = execute("get_transactions", QVariantList{backend, accid, max});
+    if (retVal) {
+      acc.id = extractDictStringValue(retVal, "id");
+      acc.name = extractDictStringValue(retVal, "name");
+      acc.balance = MyMoneyMoney(extractDictLongValue(retVal, "balance"), 100);
+      acc.type = (WeboobInterface::Account::type_t)extractDictLongValue(retVal, "type");
 
-    auto key = PyUnicode_FromString("transactions");
-    auto val = PyDict_GetItem(retVal, key);
-    if (val) {
-      auto sizeVal = PyList_Size(val);
-      for (auto i = 0 ; i < sizeVal; ++i) {
-        auto val2 = PyList_GetItem(val, i);
-        if (val2) {
-            WeboobInterface::Transaction tr;
-            tr.id = extractDictStringValue(val2, "id");
-            tr.date = QDate::fromString(extractDictStringValue(val2, "date"), "yyyy-MM-dd");
-            tr.rdate = QDate::fromString(extractDictStringValue(val2, "rdate"), "yyyy-MM-dd");
-            tr.type = (WeboobInterface::Transaction::type_t)extractDictLongValue(val2, "type");;
-            tr.raw = extractDictStringValue(val2, "raw");
-            tr.category = extractDictStringValue(val2, "category");
-            tr.label = extractDictStringValue(val2, "label");
-            tr.amount = MyMoneyMoney(extractDictLongValue(val2, "amount"), 100);
+      auto key = PyUnicode_FromString("transactions");
+      auto val = PyDict_GetItem(retVal, key);
+      if (val) {
+        auto sizeVal = PyList_Size(val);
+        for (auto i = 0 ; i < sizeVal; ++i) {
+          auto val2 = PyList_GetItem(val, i);
+          if (val2) {
+              WeboobInterface::Transaction tr;
+              tr.id = extractDictStringValue(val2, "id");
+              tr.date = QDate::fromString(extractDictStringValue(val2, "date"), "yyyy-MM-dd");
+              tr.rdate = QDate::fromString(extractDictStringValue(val2, "rdate"), "yyyy-MM-dd");
+              tr.type = (WeboobInterface::Transaction::type_t)extractDictLongValue(val2, "type");;
+              tr.raw = extractDictStringValue(val2, "raw");
+              tr.category = extractDictStringValue(val2, "category");
+              tr.label = extractDictStringValue(val2, "label");
+              tr.amount = MyMoneyMoney(extractDictLongValue(val2, "amount"), 100);
 
-            acc.transactions.append(tr);
+              acc.transactions.append(tr);
+          }
+
         }
-
       }
+      Py_DECREF(key);
+      Py_DECREF(retVal);
     }
-    Py_DECREF(key);
-    Py_DECREF(retVal);
-  }
+  )
   return acc;
 }
 
