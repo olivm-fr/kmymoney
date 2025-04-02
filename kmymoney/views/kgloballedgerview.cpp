@@ -1884,7 +1884,7 @@ QString getPayment(MyMoneyFile* file, QList<QString> tags)
       return "Carte Bancaire";
     if (name == "Virement")
       return "Virement";
-    if (name == "Espèce")
+    if (name == "Espèces")
       return "Espèces";
   }
   return NULL;
