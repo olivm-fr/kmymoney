@@ -1927,7 +1927,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
           }
           QString l2 = category.mid(pos + 1);
           const QStringList parts = l2.split('-', Qt::SkipEmptyParts);
-          if (parts.length() != 3) {
+          if (parts.length() < 2) {
             KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Invalid category", t.id()), i18n("Invoice error"));
             return;
           }
