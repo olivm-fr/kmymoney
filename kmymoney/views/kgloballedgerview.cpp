@@ -1902,17 +1902,47 @@ void KGlobalLedgerView::slotInvoiceTransactions()
   const auto tagInvoiced = file->tagByName("Facturé");
 
   auto args = QStringList();
-  args << "-jar" << "/tmp/autoInvoice-1.1.jar" << "--verbose" << "--force" << "--ouvrir";
+  args << "-jar" << "/tmp/autoInvoice-1.3.jar" << "--verbose" << "--force" << "--ouvrir";
   QString payeeId = NULL;
   MyMoneyMoney totalValue;
   QString totalCompany = NULL;
   QMap<QString, MyMoneyMoney> countPayment; // used if lines are averaged by payment method
   //QMap<QString, MyMoneyMoney> splitPayment; // used if lines are independant
   QMap<QString, MyMoneyMoney> totalPayment;
+  QString practitioner = NULL;
   try {
     foreach (const auto& st, d->m_selectedTransactions) {
       const auto& s = st.split();
       const auto& t = st.transaction();
+
+      const QList<MyMoneySplit> splits = t.splits();
+      foreach (const auto& split, splits) {
+        if (split.accountId() != s.accountId()) {
+          QString category = file->accountToCategory(split.accountId());
+          
+          int pos = category.indexOf(MyMoneyFile::AccountSeparator);    // check for ':'
+          if (pos < 0) {
+            KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No sub-category", t.id()), i18n("Invoice error"));
+            return;
+          }
+          QString l2 = category.mid(pos + 1);
+          const QStringList parts = l2.split('-', Qt::SkipEmptyParts);
+          if (parts.length() != 3) {
+            KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Invalid category", t.id()), i18n("Invoice error"));
+            return;
+          }
+          if (practitioner != NULL && practitioner != parts[1]) {
+            KMessageBox::error(this, i18n("Cannot generate invoice for %1 : Different practitioners involved", t.id()), i18n("Invoice error"));
+            return;
+          }
+          practitioner = parts[1];
+        }
+      }
+      if (practitioner == NULL) {
+        KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No valid category", t.id()), i18n("Invoice error"));
+        return;
+      }
+
       if (s.payeeId().isEmpty()) {
         KMessageBox::error(this, i18n("Cannot generate invoice for %1 : No payee", t.id()), i18n("Invoice error"));
         return;
@@ -1994,6 +2024,7 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     foreach (const auto& pay, totalPayment.keys())
       args << "--transfert=" + pay + ";" + totalPayment[pay].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
     args << "--entreprise=" + totalCompany;
+    args << "--praticien=" + practitioner;
     args << "--montant=" + totalValue.formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
     const auto addr = p.address().split('\n', Qt::SkipEmptyParts);
     auto name = p.name();
@@ -2011,7 +2042,18 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     foreach (const auto& st, d->m_selectedTransactions) {
       const auto& t = st.transaction();
         const auto& s = st.split();
-        QString txt = "Séance de psychothérapie du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
+
+        const QList<MyMoneySplit> splits = t.splits();
+        QString activity = NULL;
+        foreach (const auto& split, splits) {
+          if (split.accountId() != s.accountId()) {
+            QString category = file->accountToCategory(split.accountId());
+            QString l2 = category.mid(category.indexOf(MyMoneyFile::AccountSeparator) + 1); // check for ':' in the name and use it as separator for a hierarchy
+            activity = l2.split('-', Qt::SkipEmptyParts)[0].toLower();
+          }
+        }
+
+        QString txt = "Séance de " + activity + " du " + t.postDate().toString(Qt::DefaultLocaleShortDate);
         txt += ";"; // no second label
         //const auto amount = splitPayment[t.id()+s.id()].formatMoney("" /*currency.tradingSymbol()*/,  MyMoneyMoney::denomToPrec(acc.fraction(currency)));
         QString payment = getPayment(file, s.tagIdList());
@@ -2060,8 +2102,8 @@ void KGlobalLedgerView::slotInvoiceTransactions()
     QString path = "/tmp/";
     QFile::copy("/tmp/"+filepath+".pdf", path + filepath + ".pdf");
     args = QStringList();
-    QString me = "nathalie@home.fr";
-    args << "-compose" << "from="+me+",to="+p.email()+",bcc="+me+",subject='Votre facture',attachment="+path+filepath+".pdf,body='Bonjour,\nJe vous prie de trouver ci-joint votre facture.\nCordialement\nNathalie',format=html";
+    QString me = practitioner.toLower() + "@home.fr";
+    args << "-compose" << "from="+me+",to="+p.email()+",bcc="+me+",subject='Votre facture',attachment="+path+filepath+".pdf,body='Bonjour,\nJe vous prie de trouver ci-joint votre facture.\nCordialement\n" + practitioner + "',format=html";
     qInfo() << "Calling thunderbird with args" << args.join("   ");
     QProcess process2;
     process2.setProgram("thunderbird");
